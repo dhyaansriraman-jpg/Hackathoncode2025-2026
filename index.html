@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Carbon Footprint Tracker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <div>
+        <h1>Carbon Footprint Tracker</h1>
+        <p>Track daily activities, estimate emitted CO2, and improve your habits with a 30-day limiting journey.</p>
+      </div>
+      <div class="controls">
+        <button id="newActivityBtn" class="primary" type="button">Add Activity / AI Estimate</button>
+        <button id="nextDayBtn" class="secondary" type="button">End Day</button>
+        <button id="resetBtn" class="secondary danger" type="button">Reset Data</button>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Dashboard</h2>
+        <div class="gauges">
+          <div class="gauge">
+            <div class="top"><span>Driving</span><strong id="driveKg">0.00 kg</strong></div>
+            <div class="bar"><div id="driveBar" class="fill driving"></div></div>
+          </div>
+          <div class="gauge">
+            <div class="top"><span>Bus</span><strong id="busKg">0.00 kg</strong></div>
+            <div class="bar"><div id="busBar" class="fill bus"></div></div>
+          </div>
+          <div class="gauge">
+            <div class="top"><span>Meals</span><strong id="mealKg">0.00 kg</strong></div>
+            <div class="bar"><div id="mealBar" class="fill meals"></div></div>
+          </div>
+          <div class="gauge">
+            <div class="top"><span>Home Tasks</span><strong id="homeKg">0.00 kg</strong></div>
+            <div class="bar"><div id="homeBar" class="fill home"></div></div>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><small>Total Today</small><strong id="totalKg">0.00 kg</strong></div>
+          <div class="stat"><small>Daily Goal</small><strong id="goalKg">12.00 kg</strong></div>
+          <div class="stat"><small>Activities Logged</small><strong id="activityCount">0</strong></div>
+          <div class="stat"><small>Progress</small><strong id="goalPct">0%</strong></div>
+        </div>
+
+        <div class="speedometer-card">
+          <div class="speedometer-meta">
+            <small>Daily Limit Meter</small>
+            <strong id="speedStatus">Safe Zone</strong>
+          </div>
+          <div class="speedometer">
+            <div class="speed-arc"></div>
+            <div id="speedNeedle" class="speed-needle"></div>
+            <div class="speed-center"></div>
+            <div id="speedScale" class="speed-scale"></div>
+          </div>
+          <div class="speed-values">
+            <span>Current: <strong id="speedCurrent">0.00 kg</strong></span>
+            <span>Max: <strong id="speedGoal">12.00 kg</strong></span>
+          </div>
+        </div>
+
+        <table class="table" id="activityTable">
+          <thead>
+            <tr><th>Activity</th><th>Amount</th><th>CO2</th><th>Actions</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div id="undoBar" class="undo-bar is-hidden">
+          <span id="undoText">Last change</span>
+          <button id="undoBtn" class="secondary undo-btn" type="button">Undo</button>
+        </div>
+
+        <section class="weekly-insights">
+          <div class="weekly-head">
+            <h3>Weekly Insights</h3>
+            <span id="weeklyRange" class="hint">Days 1-1</span>
+          </div>
+          <div id="weeklyChart" class="weekly-chart"></div>
+          <div class="weekly-meta">
+            <span>7-Day Total: <strong id="weeklyTotal">0.00 kg</strong></span>
+            <span>Top Source: <strong id="weeklyTopCategory">--</strong></span>
+          </div>
+        </section>
+      </article>
+
+      <aside class="card journey">
+        <h2>30-Day Limiting Journey</h2>
+        <div class="hint" id="journeyText">Day 1 of 30. Keep emissions below your daily goal to win the challenge.</div>
+        <div class="meter"><div id="journeyBar"></div></div>
+        <div class="stat"><small>Success Days</small><strong id="successDays">0 / 30</strong></div>
+
+        <div class="routine-box">
+          <strong>Daily Routine</strong>
+          <span class="hint">Save today once, then apply the same baseline activities in one click tomorrow.</span>
+          <div class="routine-actions">
+            <button id="saveRoutineBtn" class="secondary" type="button">Save Today as Routine</button>
+            <button id="applyRoutineBtn" class="primary" type="button">Apply Saved Routine</button>
+            <button id="autoFillHistoryBtn" class="secondary" type="button">Auto-Fill from History</button>
+          </div>
+          <span id="historyHint" class="hint">Use same weekday history when available.</span>
+          <div class="stat routine-stat"><small>Saved Items</small><strong id="routineCount">0</strong></div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <section id="goalScreen" class="goal-screen">
+    <article class="goal-card">
+      <h2>Choose Your 30-Day Goal</h2>
+      <p class="hint">Set your own daily CO2 target before starting Day 1.</p>
+      <div class="goal-layout">
+        <form id="goalForm" class="goal-main">
+          <label for="goalInput">Your Daily Goal (kg CO2)</label>
+          <input id="goalInput" type="number" min="0.1" step="0.1" value="8" required />
+          <button id="saveGoalBtn" class="primary" type="submit">Start Day 1</button>
+        </form>
+        <aside class="goal-side">
+          <strong>Goal Guidance</strong>
+          <p class="hint">The daily global average is 12 kg CO2. To curb climate change, it should be 8 kg or less.</p>
+        </aside>
+      </div>
+    </article>
+  </section>
+
+  <section id="day30Screen" class="day30-screen">
+    <article class="day30-card">
+      <h2>30-Day Statistics</h2>
+      <p id="day30SummaryText" class="hint"></p>
+      <section class="day30-summary">
+        <div class="summary-grid">
+          <div class="stat summary-stat">
+            <small>Total CO2 (30 Days)</small>
+            <strong id="summaryTotalCo2">0.00 kg</strong>
+          </div>
+          <div class="stat summary-stat">
+            <small>Goal Distance</small>
+            <strong id="summaryGoalDistance">0.00 kg</strong>
+          </div>
+          <div class="stat summary-stat">
+            <small>Goal Budget Used</small>
+            <strong id="summaryGoalUsed">0%</strong>
+          </div>
+        </div>
+        <div class="top-activities">
+          <h3>Top 3 Highest CO2 Activities</h3>
+          <div id="topActivitiesBars" class="top-activity-bars"></div>
+        </div>
+      </section>
+      <table class="table" id="day30Table">
+        <thead>
+          <tr><th>Day</th><th>Total CO2</th><th>Status</th><th>Activities</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="actions">
+        <button id="closeDay30Btn" class="secondary" type="button">Back to Tracker</button>
+      </div>
+    </article>
+  </section>
+
+  <div id="modalWrap" class="modal-wrap" aria-hidden="true">
+    <div class="modal">
+      <h2 class="modal-title">Log Activity or AI Estimate</h2>
+      <div class="fields">
+        <label>
+          Entry Type
+          <select id="entryMode">
+            <option value="activity">Manual Activity</option>
+            <option value="ai">AI Estimate</option>
+          </select>
+        </label>
+      </div>
+      <div id="manualFields" class="fields">
+        <label>
+          Activity Type
+          <select id="activityType">
+            <option value="driving">Driving (miles)</option>
+            <option value="motorcycle">Motorcycle (miles)</option>
+            <option value="rideshare">Rideshare (miles)</option>
+            <option value="bus">Bus (miles)</option>
+            <option value="train">Train (miles)</option>
+            <option value="subway">Subway (miles)</option>
+            <option value="flight">Flight (miles)</option>
+            <option value="shower">Showering (minutes)</option>
+            <option value="dishwasher">Dishwasher (cycles)</option>
+            <option value="washing">Washing Machine (cycles)</option>
+            <option value="dryer">Clothes Dryer (cycles)</option>
+            <option value="ac">Air Conditioner (hours)</option>
+            <option value="streaming">Streaming Video (hours)</option>
+            <option value="coffee">Coffee (cups)</option>
+            <option value="beef">Beef Meal (servings)</option>
+            <option value="lamb">Lamb Meal (servings)</option>
+            <option value="pork">Pork Meal (servings)</option>
+            <option value="dairy">Cheese/Dairy Serving (servings)</option>
+            <option value="chicken">Chicken Meal (servings)</option>
+            <option value="fish">Fish Meal (servings)</option>
+          </select>
+        </label>
+        <label>
+          Amount
+          <input id="activityAmount" type="number" min="0" step="0.1" value="1" />
+        </label>
+      </div>
+      <div id="aiFields" class="fields is-hidden">
+        <label>
+          Country
+          <select id="countrySelect">
+            <option value="us">United States</option>
+            <option value="uk">United Kingdom</option>
+            <option value="in">India</option>
+            <option value="de">Germany</option>
+          </select>
+        </label>
+        <label>
+          Task
+          <select id="taskSelect">
+            <option value="shower">Showering (minutes)</option>
+            <option value="cooking">Cooking (minutes)</option>
+            <option value="charging">Charging Computer (hours)</option>
+          </select>
+        </label>
+        <label>
+          Amount
+          <input id="taskAmount" type="number" min="0" step="0.1" value="10" />
+        </label>
+      </div>
+      <p id="modalHint" class="hint">Examples: drove 3 miles, had 2 cups of coffee, showered 12 minutes.</p>
+      <div class="actions">
+        <button id="cancelBtn" class="secondary" type="button">Cancel</button>
+        <button id="saveBtn" class="primary" type="button">Save Activity</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
