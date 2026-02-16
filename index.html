@@ -15,6 +15,8 @@
       </div>
       <div class="controls">
         <button id="newActivityBtn" class="primary" type="button">Add Activity / AI Estimate</button>
+        <button id="exportCsvBtn" class="secondary" type="button">Export CSV</button>
+        <button id="shareCardBtn" class="secondary" type="button">Copy Share Card</button>
         <button id="nextDayBtn" class="secondary" type="button">End Day</button>
         <button id="resetBtn" class="secondary danger" type="button">Reset Data</button>
       </div>
@@ -68,7 +70,7 @@
 
         <table class="table" id="activityTable">
           <thead>
-            <tr><th>Activity</th><th>Amount</th><th>CO2</th><th>Actions</th></tr>
+            <tr><th>Activity</th><th>Member</th><th>Amount</th><th>CO2</th><th>Actions</th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -106,6 +108,21 @@
           </div>
           <span id="historyHint" class="hint">Use same weekday history when available.</span>
           <div class="stat routine-stat"><small>Saved Items</small><strong id="routineCount">0</strong></div>
+        </div>
+
+        <div class="household-box">
+          <strong>Household Mode</strong>
+          <span class="hint">Track multiple people and compare combined emissions to your daily goal.</span>
+          <label>
+            Active Member
+            <select id="memberSelect"></select>
+          </label>
+          <div class="add-member-row">
+            <input id="newMemberInput" type="text" maxlength="24" placeholder="Add member name" />
+            <button id="addMemberBtn" class="secondary" type="button">Add</button>
+          </div>
+          <div class="stat routine-stat"><small>Members</small><strong id="householdCount">1</strong></div>
+          <div id="memberTotalsList" class="member-totals"></div>
         </div>
       </aside>
     </section>
@@ -168,6 +185,7 @@
   <div id="modalWrap" class="modal-wrap" aria-hidden="true">
     <div class="modal">
       <h2 class="modal-title">Log Activity or AI Estimate</h2>
+      <p class="hint">Logging for: <strong id="activeMemberText">You</strong></p>
       <div class="fields">
         <label>
           Entry Type

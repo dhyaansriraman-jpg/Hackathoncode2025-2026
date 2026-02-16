@@ -491,6 +491,38 @@ select {
   gap: 8px;
 }
 
+.household-box {
+  margin-top: 12px;
+  background: #f3efe6;
+  border: 1px solid #e1d8c8;
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.add-member-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.member-totals {
+  display: grid;
+  gap: 6px;
+}
+
+.member-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.86rem;
+  background: #f8f3e8;
+  border: 1px solid #e7decd;
+  border-radius: 9px;
+  padding: 6px 8px;
+}
+
 .routine-actions {
   display: flex;
   gap: 8px;
@@ -690,6 +722,7 @@ body.screen-open {
   .controls { justify-content: flex-start; }
   .grid { grid-template-columns: 1fr; }
   .fields { grid-template-columns: 1fr; }
+  .add-member-row { grid-template-columns: 1fr; }
   .goal-layout { grid-template-columns: 1fr; }
   .summary-grid { grid-template-columns: 1fr; }
 }

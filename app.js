@@ -36,10 +36,13 @@ const countryModifiers = {
 const el = {
   modalWrap: document.getElementById("modalWrap"),
   newBtn: document.getElementById("newActivityBtn"),
+  exportCsvBtn: document.getElementById("exportCsvBtn"),
+  shareCardBtn: document.getElementById("shareCardBtn"),
   nextDayBtn: document.getElementById("nextDayBtn"),
   resetBtn: document.getElementById("resetBtn"),
   saveBtn: document.getElementById("saveBtn"),
   cancelBtn: document.getElementById("cancelBtn"),
+  activeMemberText: document.getElementById("activeMemberText"),
   entryMode: document.getElementById("entryMode"),
   manualFields: document.getElementById("manualFields"),
   aiFields: document.getElementById("aiFields"),
@@ -79,6 +82,11 @@ const el = {
   autoFillHistoryBtn: document.getElementById("autoFillHistoryBtn"),
   historyHint: document.getElementById("historyHint"),
   routineCount: document.getElementById("routineCount"),
+  memberSelect: document.getElementById("memberSelect"),
+  newMemberInput: document.getElementById("newMemberInput"),
+  addMemberBtn: document.getElementById("addMemberBtn"),
+  householdCount: document.getElementById("householdCount"),
+  memberTotalsList: document.getElementById("memberTotalsList"),
   weeklyRange: document.getElementById("weeklyRange"),
   weeklyChart: document.getElementById("weeklyChart"),
   weeklyTotal: document.getElementById("weeklyTotal"),
@@ -105,6 +113,8 @@ function defaultState() {
     currentDay: 1,
     successDays: 0,
     dailyGoal: null,
+    members: ["You"],
+    activeMember: "You",
     logs: [],
     routine: [],
     dayStats: [],
@@ -122,6 +132,14 @@ function loadState() {
     if (!parsed || !Array.isArray(parsed.logs)) {
       return defaultState();
     }
+    const parsedMembers = Array.isArray(parsed.members)
+      ? parsed.members
+        .map(normalizeMemberName)
+        .filter((name) => name.length > 0)
+      : [];
+    const members = parsedMembers.length > 0 ? Array.from(new Set(parsedMembers)) : ["You"];
+    const activeMember = normalizeMemberName(parsed.activeMember);
+    const resolvedActiveMember = members.includes(activeMember) ? activeMember : members[0];
     const dayStats = Array.isArray(parsed.dayStats) ? parsed.dayStats.filter(isValidDayStat) : [];
     const routine = Array.isArray(parsed.routine) ? parsed.routine.filter(isValidRoutineItem) : [];
     const currentDay = clampDay(parsed.currentDay);
@@ -130,6 +148,16 @@ function loadState() {
       ? parsed.dailyGoal
       : (hasStarted ? DEFAULT_DAILY_GOAL : null);
     const derivedSuccessDays = dayStats.filter((item) => item.total <= dailyGoalValue(dailyGoal)).length;
+    const logs = parsed.logs
+      .filter(isValidLog)
+      .map((item) => ({
+        ...item,
+        member: normalizeMemberName(item.member) || resolvedActiveMember || "You"
+      }));
+    const normalizedRoutine = routine.map((item) => ({
+      ...item,
+      member: normalizeMemberName(item.member) || resolvedActiveMember || "You"
+    }));
 
     return {
       currentDay,
@@ -137,8 +165,10 @@ function loadState() {
         ? derivedSuccessDays
         : (Number.isFinite(parsed.successDays) ? Math.max(0, Math.min(30, parsed.successDays)) : 0),
       dailyGoal,
-      logs: parsed.logs.filter(isValidLog),
-      routine,
+      members,
+      activeMember: resolvedActiveMember,
+      logs,
+      routine: normalizedRoutine,
       dayStats,
       day30ScreenOpen: Boolean(parsed.day30ScreenOpen)
     };
@@ -151,6 +181,46 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+function normalizeMemberName(name) {
+  if (typeof name !== "string") {
+    return "";
+  }
+  return name.trim().replace(/\s+/g, " ").slice(0, 24);
+}
+
+function ensureMemberState() {
+  if (!Array.isArray(state.members) || state.members.length === 0) {
+    state.members = ["You"];
+  }
+  const discovered = [];
+  if (Array.isArray(state.logs)) {
+    state.logs.forEach((item) => {
+      const name = normalizeMemberName(item.member);
+      if (name) {
+        discovered.push(name);
+      }
+    });
+  }
+  if (Array.isArray(state.routine)) {
+    state.routine.forEach((item) => {
+      const name = normalizeMemberName(item.member);
+      if (name) {
+        discovered.push(name);
+      }
+    });
+  }
+  state.members = state.members
+    .map(normalizeMemberName)
+    .filter((name) => name.length > 0);
+  state.members.push(...discovered);
+  state.members = Array.from(new Set(state.members));
+  if (state.members.length === 0) {
+    state.members = ["You"];
+  }
+  const current = normalizeMemberName(state.activeMember);
+  state.activeMember = state.members.includes(current) ? current : state.members[0];
+}
+
 function clampDay(day) {
   const n = Number(day);
   if (!Number.isFinite(n)) {
@@ -160,7 +230,13 @@ function clampDay(day) {
 }
 
 function isValidLog(item) {
-  return item && factors[item.type] && Number.isFinite(item.amount) && Number.isFinite(item.co2);
+  return (
+    item &&
+    factors[item.type] &&
+    Number.isFinite(item.amount) &&
+    Number.isFinite(item.co2) &&
+    (item.member === undefined || typeof item.member === "string")
+  );
 }
 
 function isValidRoutineItem(item) {
@@ -170,7 +246,8 @@ function isValidRoutineItem(item) {
     Number.isFinite(item.amount) &&
     item.amount > 0 &&
     (item.isAi === undefined || typeof item.isAi === "boolean") &&
-    (item.country === undefined || typeof item.country === "string")
+    (item.country === undefined || typeof item.country === "string") &&
+    (item.member === undefined || typeof item.member === "string")
   );
 }
 
@@ -184,6 +261,7 @@ function isValidDayStat(item) {
     Number.isInteger(item.activities) &&
     item.activities >= 0 &&
     (item.typeTotals === undefined || isValidTypeTotals(item.typeTotals)) &&
+    (item.memberTotals === undefined || isValidMemberTotals(item.memberTotals)) &&
     (item.entries === undefined || (Array.isArray(item.entries) && item.entries.every(isValidRoutineItem))) &&
     (item.weekday === undefined || (Number.isInteger(item.weekday) && item.weekday >= 0 && item.weekday <= 6)) &&
     (item.recordedAt === undefined || typeof item.recordedAt === "string")
@@ -195,6 +273,13 @@ function isValidTypeTotals(typeTotals) {
     return false;
   }
   return Object.entries(typeTotals).every(([type, amount]) => factors[type] && Number.isFinite(amount) && amount >= 0);
+}
+
+function isValidMemberTotals(memberTotals) {
+  if (!memberTotals || typeof memberTotals !== "object") {
+    return false;
+  }
+  return Object.entries(memberTotals).every(([member, amount]) => normalizeMemberName(member).length > 0 && Number.isFinite(amount) && amount >= 0);
 }
 
 function dailyGoalValue(value = state.dailyGoal) {
@@ -231,24 +316,32 @@ function clearUndoState() {
 function summarizeLogs(day, logs, includeHistoryMeta = false) {
   const total = logs.reduce((sum, item) => sum + item.co2, 0);
   const typeTotals = {};
+  const memberTotals = {};
   logs.forEach((item) => {
     if (!typeTotals[item.type]) {
       typeTotals[item.type] = 0;
     }
     typeTotals[item.type] += item.co2;
+    const member = normalizeMemberName(item.member) || "You";
+    if (!memberTotals[member]) {
+      memberTotals[member] = 0;
+    }
+    memberTotals[member] += item.co2;
   });
   const summary = {
     day,
     total,
     activities: logs.length,
-    typeTotals
+    typeTotals,
+    memberTotals
   };
   if (includeHistoryMeta) {
     summary.entries = logs.map((item) => ({
       type: item.type,
       amount: Number(item.amount.toFixed(2)),
       isAi: Boolean(item.isAi),
-      country: item.country || ""
+      country: item.country || "",
+      member: normalizeMemberName(item.member) || "You"
     }));
     summary.weekday = new Date().getDay();
     summary.recordedAt = new Date().toISOString();
@@ -282,6 +375,9 @@ function closeModal() {
 }
 
 function updateModalMode() {
+  if (el.activeMemberText) {
+    el.activeMemberText.textContent = state.activeMember || "You";
+  }
   if (!el.entryMode || !el.manualFields || !el.aiFields || !el.saveBtn) {
     if (el.amount) {
       el.amount.focus();
@@ -304,7 +400,7 @@ function updateModalMode() {
   }
 }
 
-function buildLogEntry(type, amount, isAi = false, country = "") {
+function buildLogEntry(type, amount, isAi = false, country = "", member = state.activeMember) {
   const meta = factors[type];
   if (!meta || !Number.isFinite(amount) || amount <= 0) {
     return null;
@@ -328,7 +424,8 @@ function buildLogEntry(type, amount, isAi = false, country = "") {
     label,
     unit: meta.unit,
     isAi: Boolean(isAi),
-    country: normalizedCountry
+    country: normalizedCountry,
+    member: normalizeMemberName(member) || state.activeMember || "You"
   };
 }
 
@@ -361,9 +458,10 @@ function collapseLogsToRoutine(logs) {
   logs.forEach((item) => {
     const isAi = Boolean(item.isAi);
     const country = isAi ? (typeof item.country === "string" && item.country ? item.country : "us") : "";
-    const key = `${item.type}|${isAi ? 1 : 0}|${country}`;
+    const member = normalizeMemberName(item.member) || state.activeMember || "You";
+    const key = `${item.type}|${isAi ? 1 : 0}|${country}|${member}`;
     if (!routineMap.has(key)) {
-      routineMap.set(key, { type: item.type, amount: 0, isAi, country });
+      routineMap.set(key, { type: item.type, amount: 0, isAi, country, member });
     }
     const entry = routineMap.get(key);
     entry.amount += item.amount;
@@ -401,7 +499,13 @@ function applySavedRoutine() {
       return;
     }
   }
-  const entries = state.routine.map((item) => buildLogEntry(item.type, item.amount, Boolean(item.isAi), item.country || "us"));
+  const entries = state.routine.map((item) => buildLogEntry(
+    item.type,
+    item.amount,
+    Boolean(item.isAi),
+    item.country || "us",
+    normalizeMemberName(item.member) || state.activeMember
+  ));
   const added = addEntries(entries);
   if (added === 0) {
     window.alert("Could not apply the saved routine. Please save it again.");
@@ -448,7 +552,13 @@ function applyHistoryAutoFill() {
   }
 
   const rebuilt = source.entries
-    .map((item) => buildLogEntry(item.type, item.amount, Boolean(item.isAi), item.country || ""))
+    .map((item) => buildLogEntry(
+      item.type,
+      item.amount,
+      Boolean(item.isAi),
+      item.country || "",
+      normalizeMemberName(item.member) || state.activeMember
+    ))
     .filter(Boolean);
 
   if (rebuilt.length === 0) {
@@ -472,7 +582,54 @@ function getTotals() {
   return { totals, total };
 }
 
+function getMemberTotals(logs = state.logs) {
+  const totals = {};
+  logs.forEach((item) => {
+    const member = normalizeMemberName(item.member) || "You";
+    if (!totals[member]) {
+      totals[member] = 0;
+    }
+    totals[member] += item.co2;
+  });
+  return totals;
+}
+
+function addHouseholdMember() {
+  if (!el.newMemberInput) {
+    return;
+  }
+  const name = normalizeMemberName(el.newMemberInput.value);
+  if (!name) {
+    window.alert("Enter a member name to add.");
+    return;
+  }
+  const existing = state.members.find((member) => member.toLowerCase() === name.toLowerCase());
+  if (existing) {
+    state.activeMember = existing;
+    el.newMemberInput.value = "";
+    saveState();
+    render();
+    return;
+  }
+  state.members.push(name);
+  state.activeMember = name;
+  el.newMemberInput.value = "";
+  saveState();
+  render();
+}
+
+function setActiveMember(member) {
+  const normalized = normalizeMemberName(member);
+  if (!normalized || !state.members.includes(normalized)) {
+    return;
+  }
+  state.activeMember = normalized;
+  saveState();
+  render();
+}
+
 function render() {
+  ensureMemberState();
   const goal = dailyGoalValue();
   const { totals, total } = getTotals();
   const pct = Math.min((total / goal) * 100, 100);
@@ -496,6 +653,7 @@ function render() {
   renderTable();
   renderUndo();
   renderRoutine();
+  renderHousehold();
   renderWeeklyInsights();
   renderJourney(total, goal);
   renderDay30Screen(goal);
@@ -535,11 +693,40 @@ function renderRoutine() {
   }
 }
 
-function renderWeeklyInsights() {
-  if (!el.weeklyChart || !el.weeklyRange || !el.weeklyTotal || !el.weeklyTopCategory) {
+function renderHousehold() {
+  if (!el.memberSelect || !el.householdCount || !el.memberTotalsList) {
     return;
   }
 
+  el.memberSelect.innerHTML = "";
+  state.members.forEach((member) => {
+    const option = document.createElement("option");
+    option.value = member;
+    option.textContent = member;
+    el.memberSelect.appendChild(option);
+  });
+  el.memberSelect.value = state.activeMember;
+  el.householdCount.textContent = String(state.members.length);
+
+  const memberTotals = getMemberTotals();
+  const orderedMembers = state.members
+    .slice()
+    .sort((a, b) => (memberTotals[b] || 0) - (memberTotals[a] || 0));
+
+  el.memberTotalsList.innerHTML = "";
+  orderedMembers.forEach((member) => {
+    const row = document.createElement("div");
+    row.className = "member-row";
+    row.innerHTML = `<span>${member}</span><strong>${(memberTotals[member] || 0).toFixed(2)} kg</strong>`;
+    el.memberTotalsList.appendChild(row);
+  });
+
+  if (el.activeMemberText) {
+    el.activeMemberText.textContent = state.activeMember || "You";
+  }
+}
+
+function getWeeklySeries() {
   const statsByDay = new Map(state.dayStats.map((item) => [item.day, item]));
   statsByDay.set(state.currentDay, summarizeLogs(state.currentDay, state.logs));
   const endDay = state.currentDay;
@@ -562,6 +749,34 @@ function renderWeeklyInsights() {
       typeTotals: {}
     });
   }
+
+  return { startDay, endDay, series };
+}
+
+function getTopCategoryLabel(series) {
+  const typeTotals = {};
+  series.forEach((item) => {
+    Object.entries(item.typeTotals).forEach(([type, amount]) => {
+      if (!typeTotals[type]) {
+        typeTotals[type] = 0;
+      }
+      typeTotals[type] += amount;
+    });
+  });
+  const top = Object.entries(typeTotals).sort((a, b) => b[1] - a[1])[0];
+  if (!top) {
+    return { label: "--", amount: 0 };
+  }
+  const topLabel = factors[top[0]] && factors[top[0]].label ? factors[top[0]].label.replace(/ Counter$/, "") : top[0];
+  return { label: topLabel, amount: top[1] };
+}
+
+function renderWeeklyInsights() {
+  if (!el.weeklyChart || !el.weeklyRange || !el.weeklyTotal || !el.weeklyTopCategory) {
+    return;
+  }
+
+  const { startDay, endDay, series } = getWeeklySeries();
 
   const maxTotal = Math.max(...series.map((item) => item.total), 0);
   el.weeklyChart.innerHTML = "";
@@ -591,26 +806,88 @@ function renderWeeklyInsights() {
     el.weeklyChart.appendChild(col);
   });
 
-  const typeTotals = {};
-  series.forEach((item) => {
-    Object.entries(item.typeTotals).forEach(([type, amount]) => {
-      if (!typeTotals[type]) {
-        typeTotals[type] = 0;
-      }
-      typeTotals[type] += amount;
-    });
-  });
-
-  const top = Object.entries(typeTotals).sort((a, b) => b[1] - a[1])[0];
+  const top = getTopCategoryLabel(series);
   const weeklyTotal = series.reduce((sum, item) => sum + item.total, 0);
   el.weeklyRange.textContent = `Days ${startDay}-${endDay}`;
   el.weeklyTotal.textContent = `${weeklyTotal.toFixed(2)} kg`;
-  if (top) {
-    const topLabel = factors[top[0]] && factors[top[0]].label ? factors[top[0]].label.replace(/ Counter$/, "") : top[0];
-    el.weeklyTopCategory.textContent = `${topLabel} (${top[1].toFixed(2)} kg)`;
-  } else {
-    el.weeklyTopCategory.textContent = "--";
+  el.weeklyTopCategory.textContent = top.amount > 0 ? `${top.label} (${top.amount.toFixed(2)} kg)` : "--";
+}
+
+function csvEscape(value) {
+  const text = String(value ?? "");
+  if (text.includes(",") || text.includes("\"") || text.includes("\n")) {
+    return `"${text.replace(/"/g, "\"\"")}"`;
   }
+  return text;
+}
+
+function exportCsv() {
+  const goal = dailyGoalValue();
+  const statsByDay = new Map(state.dayStats.map((item) => [item.day, item]));
+  statsByDay.set(state.currentDay, summarizeLogs(state.currentDay, state.logs));
+
+  const rows = [["Day", "Member", "TotalKg", "GoalKg", "Status", "Activities"]];
+  for (let day = 1; day <= state.currentDay; day += 1) {
+    const stat = statsByDay.get(day);
+    if (!stat) {
+      continue;
+    }
+    const status = stat.total <= goal ? "Success" : "Over Goal";
+    rows.push([day, "Household", stat.total.toFixed(2), goal.toFixed(2), status, stat.activities]);
+    if (stat.memberTotals) {
+      Object.entries(stat.memberTotals).forEach(([member, total]) => {
+        rows.push([day, member, total.toFixed(2), goal.toFixed(2), status, ""]);
+      });
+    }
+  }
+
+  const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `carbon-household-day-${state.currentDay}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function buildShareCardText() {
+  const goal = dailyGoalValue();
+  const { total } = getTotals();
+  const progress = goal > 0 ? (total / goal) * 100 : 0;
+  const { startDay, endDay, series } = getWeeklySeries();
+  const weeklyTotal = series.reduce((sum, item) => sum + item.total, 0);
+  const top = getTopCategoryLabel(series);
+  const memberTotals = getMemberTotals();
+  const memberLines = Object.entries(memberTotals)
+    .sort((a, b) => b[1] - a[1])
+    .map(([member, memberTotal]) => `- ${member}: ${memberTotal.toFixed(2)} kg`);
+
+  const lines = [
+    `Carbon Footprint Tracker - Day ${state.currentDay}`,
+    `Household total today: ${total.toFixed(2)} kg / ${goal.toFixed(2)} kg goal (${progress.toFixed(0)}%)`,
+    `Weekly total (Days ${startDay}-${endDay}): ${weeklyTotal.toFixed(2)} kg`,
+    `Top source this week: ${top.amount > 0 ? `${top.label} (${top.amount.toFixed(2)} kg)` : "--"}`,
+    "Member totals today:",
+    ...(memberLines.length > 0 ? memberLines : ["- No entries yet"])
+  ];
+  return lines.join("\n");
+}
+
+async function copyShareCard() {
+  const text = buildShareCardText();
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+    try {
+      await navigator.clipboard.writeText(text);
+      window.alert("Share card copied to clipboard.");
+      return;
+    } catch (_err) {
+      // fall back to prompt below
+    }
+  }
+  window.prompt("Copy your share card text:", text);
 }
 
 function renderSpeedometer(total, goal) {
@@ -692,7 +969,7 @@ function renderTable() {
   state.logs.slice().reverse().forEach((item, reversedIndex) => {
     const actualIndex = state.logs.length - 1 - reversedIndex;
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${item.label}</td><td>${item.amount} ${item.unit}</td><td>${item.co2.toFixed(2)} kg</td>`;
+    tr.innerHTML = `<td>${item.label}</td><td>${normalizeMemberName(item.member) || "You"}</td><td>${item.amount} ${item.unit}</td><td>${item.co2.toFixed(2)} kg</td>`;
 
     const actionsTd = document.createElement("td");
     const actionsWrap = document.createElement("div");
@@ -734,7 +1011,7 @@ function editActivityAt(index) {
     window.alert("Please enter a valid amount above 0.");
     return;
   }
-  const updated = buildLogEntry(item.type, nextAmount, Boolean(item.isAi), item.country || "");
+  const updated = buildLogEntry(item.type, nextAmount, Boolean(item.isAi), item.country || "", item.member || state.activeMember);
   if (!updated) {
     window.alert("Could not update this activity.");
     return;
@@ -968,6 +1245,8 @@ function resetData() {
   state.currentDay = fresh.currentDay;
   state.successDays = fresh.successDays;
   state.dailyGoal = fresh.dailyGoal;
+  state.members = fresh.members;
+  state.activeMember = fresh.activeMember;
   state.logs = fresh.logs;
   state.routine = fresh.routine;
   state.dayStats = fresh.dayStats;
@@ -1039,6 +1318,30 @@ if (el.autoFillHistoryBtn) {
 }
 if (el.undoBtn) {
   el.undoBtn.addEventListener("click", undoLastChange);
+}
+if (el.exportCsvBtn) {
+  el.exportCsvBtn.addEventListener("click", exportCsv);
+}
+if (el.shareCardBtn) {
+  el.shareCardBtn.addEventListener("click", () => {
+    copyShareCard();
+  });
+}
+if (el.memberSelect) {
+  el.memberSelect.addEventListener("change", () => {
+    setActiveMember(el.memberSelect.value);
+  });
+}
+if (el.addMemberBtn) {
+  el.addMemberBtn.addEventListener("click", addHouseholdMember);
+}
+if (el.newMemberInput) {
+  el.newMemberInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addHouseholdMember();
+    }
+  });
 }
 
 el.nextDayBtn.addEventListener("click", endDay);
